@@ -1,7 +1,7 @@
 import { suits, cardText } from './cards.js';
 import { attackOf, BASE_WICK, BURST_DAMAGE, canPlay, costOf, totals, FLARE_COST, HAND_SIZE, MAX_EMBERS, PLAY_LIMIT } from './duel.js';
 import { previewRound } from './match.js';
-import { describe } from './rival.js';
+import { describe, intentOf } from './rival.js';
 
 function suitIcon(suit) {
   return `<span class="suit-icon ${suit.toLowerCase()}" aria-hidden="true">${suits[suit].icon}</span>`;
@@ -44,11 +44,14 @@ export function feature(scene, game) {
   return `<section class="feature ${scene}">
     <div class="imprint"><span>✦</span> THE MOTH LANTERN FESTIVAL</div>
     <div class="feature-content">
-      <p class="eyebrow">${title ? 'A DUEL AT DUSK' : `DUEL COMPLETE · ROUND ${game.round}`}</p>
+      <p class="eyebrow">${title ? 'A DUEL AT DUSK' : 'DUEL COMPLETE'}</p>
       <h1>${name}</h1>
       <p class="feature-copy">${copy}</p>
-      ${title ? '' : `<div class="result-score"><span>You <b>${game.player.embers}</b></span><span>Rival <b>${game.rival.embers}</b></span></div>
-      <div class="finisher">${won ? '<span>Final blow</span><b>Beacon Burst · 6 pierce</b>' : `<span>Rival kept</span><b>${game.rival.embers} embers</b>`}</div>`}
+      ${won ? `<dl class="run-stats">
+        <div><dt>Rounds</dt><dd>${game.round}</dd></div>
+        <div><dt>Best chain</dt><dd>${game.bestChain >= 2 ? `×${game.bestChain}` : '—'}</dd></div>
+        <div><dt>Embers left</dt><dd>${game.player.embers}</dd></div>
+      </dl>` : title ? '' : `<div class="result-score"><span>You <b>${game.player.embers}</b></span><span>Rival <b>${game.rival.embers}</b></span></div>`}
       <button class="primary" data-action="start">${title ? 'Take up your lantern' : 'Duel again'} <span>→</span></button>
       <div class="feature-key"><kbd>Enter</kbd> to ${title ? 'begin' : 'restart'}</div>
     </div>
@@ -79,8 +82,8 @@ function chain(name, suit, count) {
 export function table(game, moltIndex = null) {
   const { player, rival, report, warden } = game;
   const stats = totals(player.played, player.status);
-  const forecast = previewRound(game);
-  const { intent } = forecast;
+  const forecast = game.result ? null : previewRound(game);
+  const intent = forecast?.intent ?? intentOf(game);
   const choosing = moltIndex !== null;
   const burstReady = player.flare >= FLARE_COST;
   return `<section class="table">
@@ -99,7 +102,7 @@ export function table(game, moltIndex = null) {
           ${game.plan.length ? `<div class="scheme">Playing <b>${game.plan[0].name}</b>${game.plan.length > 1 ? ` +${game.plan.length - 1}` : ''}</div>` : '<div class="scheme">holding back</div>'}
           ${game.rivalBurst ? '<div class="scheme">Beacon Burst ready</div>' : ''}
         </div>
-        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}${game.float ? `<span class="float hit">-${game.float.rival}</span>` : ''}</div>
+        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}</div>
       </aside>
       <div class="field">
         <div class="rival-hand" aria-label="Rival hand, ${rival.hand.length} cards">
@@ -110,7 +113,7 @@ export function table(game, moltIndex = null) {
           <div class="zone-label">YOUR PLAYED CARDS <span>${player.played.length} / ${PLAY_LIMIT}</span></div>
           <div class="slots">${Array.from({ length: PLAY_LIMIT }, (_, index) => {
             const card = player.played[index];
-            return card ? `<div class="slot filled ${card.suit.toLowerCase()}" title="${card.name}">${suitIcon(card.suit)} <b>${card.value}</b></div>`
+            return card ? `<div data-slot="${index}" class="slot filled ${card.suit.toLowerCase()}" title="${card.name}">${suitIcon(card.suit)} <b>${card.value}</b></div>`
               : '<div class="slot" aria-hidden="true">◇</div>';
           }).join('')}</div>
           <div class="chain" aria-live="polite"><span>CHAIN</span>
@@ -124,15 +127,15 @@ export function table(game, moltIndex = null) {
         <div class="hand" aria-label="Your hand">${player.hand.map((card, index) =>
           `<button class="card ${card.suit.toLowerCase()}" data-card="${index}" ${(choosing ? index !== moltIndex : canPlay(player, card)) ? '' : 'disabled'}
             aria-label="${choosing ? 'Discard ' : ''}${card.name}, ${card.suit}, value ${card.value}, costs ${costOf(player, card)} Wick, ${cardText(card)}"
-            title="${cardText(card)}" style="--deal: ${index * 45}ms">${cardFace(card, costOf(player, card), index + 1)}</button>`).join('')}</div>
+            title="${cardText(card)}" style="--deal: ${index * 65}ms">${cardFace(card, costOf(player, card), index + 1)}</button>`).join('')}</div>
       </div>
       <aside class="controls">
         <div class="meter-wrap player-meter">${meter(player, 'Your embers')}</div>
         <div class="report" aria-live="polite">${report ? `Last exchange<br><strong>${report.dealt} dealt · ${report.taken} taken</strong>${report.burn ? `<br><small>${report.burn.rival ? `Burn ${report.burn.rival} on rival` : ''}${report.burn.rival && report.burn.player ? ' · ' : ''}${report.burn.player ? `Burn ${report.burn.player} on you` : ''}</small>` : ''}${report.burst ? '<br><small>Beacon Burst!</small>' : ''}` : ''}</div>
-        <div class="forecast" aria-live="polite"><span>DAMAGE PREVIEW</span>
+        ${forecast ? `<div class="forecast" aria-live="polite"><span>DAMAGE PREVIEW</span>
           <div><span>Rival · ${forecast.rivalAfter} left</span><b>−${forecast.dealt}</b></div>
           <div><span>You · ${forecast.playerAfter} left</span><b>−${forecast.taken}</b></div>
-        </div>
+        </div>` : ''}
         <div class="wick"><span>AVAILABLE WICK</span><div aria-label="${player.wick} Wick">${Array.from({ length: Math.max(3, player.wick) }, (_, index) =>
           `<i class="${index < player.wick ? 'lit' : ''}"></i>`).join('')}</div><strong>${player.wick}</strong>
           ${player.discount ? '<small>Next card costs 1 less</small>' : ''}</div>

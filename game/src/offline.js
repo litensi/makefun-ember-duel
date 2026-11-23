@@ -186,7 +186,10 @@ function finish(game) {
 }
 
 function playCard(game, index, discardIndex) {
-  return !game.result && play(game.player, game.rival, index, game.random, discardIndex);
+  if (game.result || !play(game.player, game.rival, index, game.random, discardIndex)) return false;
+  const { lanterns, moths } = totals(game.player.played);
+  game.bestChain = Math.max(game.bestChain, lanterns, moths);
+  return true;
 }
 
 function wieldBurst(game) {
@@ -276,7 +279,6 @@ function describe(warden) {
 
 // ---- src/match.js ----
 
-
 function prepareTurn(game) {
   resetTurn(game.player, game.random);
   resetTurn(game.rival, game.random);
@@ -289,7 +291,7 @@ function prepareTurn(game) {
 function newGame(seed) {
   const random = randomFrom(seed);
   const game = {
-    random, warden: chooseWarden(random), round: 1, result: null, report: null,
+    random, warden: chooseWarden(random), round: 1, bestChain: 0, result: null, report: null,
     player: newDuelist(random), rival: newDuelist(random),
   };
   prepareTurn(game);
@@ -346,91 +348,35 @@ function endTurn(game) {
 
 // ---- src/replay.js ----
 
+// These moves were played with seed 1. The table capture pauses mid-round
+// on Ignite, and the victory capture continues from that exact position.
+const tableMoves = [
+  ['Roof Draft'], ['Pale Silkmoth'], ['Ash Cloak'], 'burst', 'end',
+  ['Moon Mantle'], ['Molt', 'Velvet Wing'], 'end',
+  ['Cricket Lamp'], ['Foxfire'],
+];
 
-function take(side, name) {
-  const card = [side.hand, side.deck, side.discard, side.played]
-    .flat().find(card => card.name === name);
-  if (!card) return undefined;
-  for (const pile of [side.hand, side.deck, side.discard, side.played]) {
-    const index = pile.indexOf(card);
-    if (index !== -1) pile.splice(index, 1);
-  }
-  side.hand.push(card);
-  return card;
-}
+const winMoves = [
+  ...tableMoves, ['Smoke'], 'end',
+  ['Bell Gust'], ['Kindle'], ['Last Beacon'], 'burst',
+];
 
-function ended(seed, moves) {
+function replay(seed, scene) {
   const game = newGame(seed);
-  for (const move of moves) {
+  if (scene === 'loss') {
+    while (!game.result && game.round <= 20) endTurn(game);
+    return game;
+  }
+  for (const move of scene === 'win' ? winMoves : tableMoves) {
+    if (game.result) break;
     if (move === 'end') endTurn(game);
     else if (move === 'burst') wieldBurst(game);
     else {
       const [name, discard] = move;
-      playCard(game, game.player.hand.findIndex(card => card.name === name),
-        game.player.hand.findIndex(card => card.name === discard));
+      const { hand } = game.player;
+      playCard(game, hand.findIndex(card => card.name === name), hand.findIndex(card => card.name === discard));
     }
   }
-  return game;
-}
-
-const tableMoves = [
-  ['Roof Draft'], ['Pale Silkmoth'], ['Cricket Lamp'], 'end',
-  ['Saffron Torch'], ['Velvet Wing'], 'end',
-  ['Last Beacon'],
-];
-
-const winMoves = [
-  ['Ash Cloak'], ['Paper Wings'], ['Foxfire'], 'end',
-  ['Moon Mantle'], ['Cricket Lamp'], ['Foxfire'], 'end',
-  ['Pale Silkmoth'], ['Bell Gust'], ['Saffron Torch'], 'end',
-  ['Moon Mantle'], ['Velvet Wing'], ['Last Beacon'], 'burst', 'end',
-  ['Kindle'], ['Foxfire'], ['Saffron Torch'], 'end',
-];
-
-const lossMoves = ['end', 'end', 'end', 'end', 'end', 'end', 'end', 'end', 'end'];
-
-function stagedTable(seed) {
-  const game = ended(seed ^ 2052212128, tableMoves);
-  game.result = null;
-  game.round = 7;
-  game.player.embers = 7;
-  game.rival.embers = 6;
-  game.player.flare = 3;
-  game.rival.flare = 2;
-  game.player.wick = 2;
-  game.player.status.shroud = 1;
-  game.rival.status.burn = 2;
-  game.rival.status.burnTurns = 2;
-  game.player.discard.push(...game.player.hand);
-  game.player.hand = [];
-  game.player.played = [];
-  for (const name of ['Cricket Lamp', 'Saffron Torch']) game.player.played.push(take(game.player, name));
-  game.player.played = game.player.played.filter(Boolean);
-  game.player.hand = game.player.hand.filter(card => !game.player.played.includes(card));
-  for (const name of ['Last Beacon', 'Moon Mantle', 'Honey Seal', 'Kindle', 'Molt']) take(game.player, name);
-  game.warden.name = 'Veil Keeper';
-  game.warden.tell = 'wings raised';
-  game.plan = [take(game.rival, 'Last Beacon'), take(game.rival, 'Paper Wings')].filter(Boolean);
-  game.rival.hand = game.rival.hand.filter(card => !game.plan.includes(card));
-  while (game.rival.hand.length < 5 && game.rival.deck.length) game.rival.hand.push(game.rival.deck.pop());
-  game.report = { dealt: 3, taken: 2, burn: { rival: 2 } };
-  game.float = { rival: 3 };
-  return game;
-}
-
-function replay(seed, scene) {
-  if (scene === 'table') return stagedTable(seed || 7);
-  const game = ended((seed || 7) ^ 991, scene === 'win' ? winMoves : lossMoves);
-  if (scene === 'win') {
-    game.result = 'win';
-    game.rival.embers = 0;
-    game.player.embers = 4;
-  } else {
-    game.result = 'loss';
-    game.player.embers = 0;
-    game.rival.embers = 5;
-  }
-  game.round = 8;
   return game;
 }
 
@@ -661,7 +607,6 @@ function paintFestival(canvas, scene, celebrate = false) {
 
 // ---- src/effects.js ----
 let audio;
-let toneCount = 0;
 
 function context() {
   if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
@@ -723,14 +668,25 @@ function shake(node) {
   setTimeout(() => node.classList.remove('shake'), 420);
 }
 
-function markEmbers() {
-  return Math.max(0, ++toneCount);
+function flashEmbers(meter, damage, kind = 'hit') {
+  if (!meter || !damage) return;
+  meter.classList.add('damaged');
+  floatAt(meter, `−${damage}`, kind);
+}
+
+function snapCard(bounds, slot) {
+  if (!bounds || !slot || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const landing = slot.getBoundingClientRect();
+  const x = bounds.left + (bounds.width - landing.width) / 2 - landing.left;
+  const y = bounds.top + (bounds.height - landing.height) / 2 - landing.top;
+  slot.animate([
+    { transform: `translate(${x}px, ${y}px) scale(1.18) rotate(-5deg)`, opacity: .65 },
+    { transform: 'scale(.92)', opacity: 1, offset: .78 },
+    { transform: 'scale(1)', opacity: 1 },
+  ], { duration: 245, easing: 'cubic-bezier(.25,.7,.4,1)' });
 }
 
 // ---- src/view.js ----
-
-
-
 
 function suitIcon(suit) {
   return `<span class="suit-icon ${suit.toLowerCase()}" aria-hidden="true">${suits[suit].icon}</span>`;
@@ -773,11 +729,14 @@ function feature(scene, game) {
   return `<section class="feature ${scene}">
     <div class="imprint"><span>✦</span> THE MOTH LANTERN FESTIVAL</div>
     <div class="feature-content">
-      <p class="eyebrow">${title ? 'A DUEL AT DUSK' : `DUEL COMPLETE · ROUND ${game.round}`}</p>
+      <p class="eyebrow">${title ? 'A DUEL AT DUSK' : 'DUEL COMPLETE'}</p>
       <h1>${name}</h1>
       <p class="feature-copy">${copy}</p>
-      ${title ? '' : `<div class="result-score"><span>You <b>${game.player.embers}</b></span><span>Rival <b>${game.rival.embers}</b></span></div>
-      <div class="finisher">${won ? '<span>Final blow</span><b>Beacon Burst · 6 pierce</b>' : `<span>Rival kept</span><b>${game.rival.embers} embers</b>`}</div>`}
+      ${won ? `<dl class="run-stats">
+        <div><dt>Rounds</dt><dd>${game.round}</dd></div>
+        <div><dt>Best chain</dt><dd>${game.bestChain >= 2 ? `×${game.bestChain}` : '—'}</dd></div>
+        <div><dt>Embers left</dt><dd>${game.player.embers}</dd></div>
+      </dl>` : title ? '' : `<div class="result-score"><span>You <b>${game.player.embers}</b></span><span>Rival <b>${game.rival.embers}</b></span></div>`}
       <button class="primary" data-action="start">${title ? 'Take up your lantern' : 'Duel again'} <span>→</span></button>
       <div class="feature-key"><kbd>Enter</kbd> to ${title ? 'begin' : 'restart'}</div>
     </div>
@@ -808,8 +767,8 @@ function chain(name, suit, count) {
 function table(game, moltIndex = null) {
   const { player, rival, report, warden } = game;
   const stats = totals(player.played, player.status);
-  const forecast = previewRound(game);
-  const { intent } = forecast;
+  const forecast = game.result ? null : previewRound(game);
+  const intent = forecast?.intent ?? intentOf(game);
   const choosing = moltIndex !== null;
   const burstReady = player.flare >= FLARE_COST;
   return `<section class="table">
@@ -828,7 +787,7 @@ function table(game, moltIndex = null) {
           ${game.plan.length ? `<div class="scheme">Playing <b>${game.plan[0].name}</b>${game.plan.length > 1 ? ` +${game.plan.length - 1}` : ''}</div>` : '<div class="scheme">holding back</div>'}
           ${game.rivalBurst ? '<div class="scheme">Beacon Burst ready</div>' : ''}
         </div>
-        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}${game.float ? `<span class="float hit">-${game.float.rival}</span>` : ''}</div>
+        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}</div>
       </aside>
       <div class="field">
         <div class="rival-hand" aria-label="Rival hand, ${rival.hand.length} cards">
@@ -839,7 +798,7 @@ function table(game, moltIndex = null) {
           <div class="zone-label">YOUR PLAYED CARDS <span>${player.played.length} / ${PLAY_LIMIT}</span></div>
           <div class="slots">${Array.from({ length: PLAY_LIMIT }, (_, index) => {
             const card = player.played[index];
-            return card ? `<div class="slot filled ${card.suit.toLowerCase()}" title="${card.name}">${suitIcon(card.suit)} <b>${card.value}</b></div>`
+            return card ? `<div data-slot="${index}" class="slot filled ${card.suit.toLowerCase()}" title="${card.name}">${suitIcon(card.suit)} <b>${card.value}</b></div>`
               : '<div class="slot" aria-hidden="true">◇</div>';
           }).join('')}</div>
           <div class="chain" aria-live="polite"><span>CHAIN</span>
@@ -853,15 +812,15 @@ function table(game, moltIndex = null) {
         <div class="hand" aria-label="Your hand">${player.hand.map((card, index) =>
           `<button class="card ${card.suit.toLowerCase()}" data-card="${index}" ${(choosing ? index !== moltIndex : canPlay(player, card)) ? '' : 'disabled'}
             aria-label="${choosing ? 'Discard ' : ''}${card.name}, ${card.suit}, value ${card.value}, costs ${costOf(player, card)} Wick, ${cardText(card)}"
-            title="${cardText(card)}" style="--deal: ${index * 45}ms">${cardFace(card, costOf(player, card), index + 1)}</button>`).join('')}</div>
+            title="${cardText(card)}" style="--deal: ${index * 65}ms">${cardFace(card, costOf(player, card), index + 1)}</button>`).join('')}</div>
       </div>
       <aside class="controls">
         <div class="meter-wrap player-meter">${meter(player, 'Your embers')}</div>
         <div class="report" aria-live="polite">${report ? `Last exchange<br><strong>${report.dealt} dealt · ${report.taken} taken</strong>${report.burn ? `<br><small>${report.burn.rival ? `Burn ${report.burn.rival} on rival` : ''}${report.burn.rival && report.burn.player ? ' · ' : ''}${report.burn.player ? `Burn ${report.burn.player} on you` : ''}</small>` : ''}${report.burst ? '<br><small>Beacon Burst!</small>' : ''}` : ''}</div>
-        <div class="forecast" aria-live="polite"><span>DAMAGE PREVIEW</span>
+        ${forecast ? `<div class="forecast" aria-live="polite"><span>DAMAGE PREVIEW</span>
           <div><span>Rival · ${forecast.rivalAfter} left</span><b>−${forecast.dealt}</b></div>
           <div><span>You · ${forecast.playerAfter} left</span><b>−${forecast.taken}</b></div>
-        </div>
+        </div>` : ''}
         <div class="wick"><span>AVAILABLE WICK</span><div aria-label="${player.wick} Wick">${Array.from({ length: Math.max(3, player.wick) }, (_, index) =>
           `<i class="${index < player.wick ? 'lit' : ''}"></i>`).join('')}</div><strong>${player.wick}</strong>
           ${player.discount ? '<small>Next card costs 1 less</small>' : ''}</div>
@@ -879,11 +838,6 @@ function table(game, moltIndex = null) {
 
 // ---- src/main.js ----
 
-
-
-
-
-
 const root = document.querySelector('#game');
 const canvas = document.querySelector('#festival');
 const query = new URLSearchParams(location.search);
@@ -893,32 +847,58 @@ let game = ['table', 'win', 'loss'].includes(shot) ? replay(seed ?? 1, shot) : n
 let paintedScene;
 let sound = !shot;
 let moltIndex = null;
+let showingFinalHit = false;
 
 function repaint() {
   paintFestival(canvas, paintedScene, paintedScene === 'win');
 }
 
 function render(deal = false, focus = null) {
-  const scene = game ? game.result || 'table' : 'title';
+  const scene = game ? (showingFinalHit ? 'table' : game.result || 'table') : 'title';
   const changed = scene !== paintedScene;
   paintedScene = scene;
   if (changed) repaint();
   root.dataset.scene = scene;
   root.classList.toggle('deal', deal && !shot);
-  root.classList.toggle('celebrate', scene === 'win');
+  root.classList.toggle('celebrate', scene === 'win' && !shot);
   root.classList.toggle('still', Boolean(shot));
   root.innerHTML = scene === 'table' ? table(game, moltIndex) : feature(scene, game);
+  root.inert = showingFinalHit;
   if (changed && sound && scene === 'win') victorySound();
   if (changed && sound && scene === 'loss') tone(120, 0.8, 'sine', 0.05);
   if (focus !== null && scene === 'table') {
     const target = [...root.querySelectorAll('.card:not(:disabled)')].find(button => Number(button.dataset.card) >= focus);
     (target || root.querySelector('[data-action="end"]')).focus({ preventScroll: true });
-  } else if (deal && !shot) {
+  } else if ((deal || game?.result) && !shot) {
     (root.querySelector('[data-action="end"]') || root.querySelector('[data-action]'))?.focus({ preventScroll: true });
   }
 }
 
+function showExchange(deal, burst = false) {
+  const { report, result } = game;
+  showingFinalHit = Boolean(result && !shot);
+  render(deal && !result);
+  const taken = report.taken + (report.burn?.player ?? 0);
+  const dealt = report.dealt + (report.burn?.rival ?? 0);
+  flashEmbers(root.querySelector('.player-meter'), taken);
+  const rivalMeter = root.querySelector('.rival-rail .meter-wrap');
+  flashEmbers(rivalMeter, dealt, burst ? 'burst' : 'hit');
+  if (burst && !dealt) floatAt(rivalMeter, 'Blocked', 'burst');
+  if (taken) {
+    hurtSound();
+    if (!result) shake(root.querySelector('.table'));
+  }
+  if (report.burst) burstSound();
+  if (showingFinalHit) {
+    setTimeout(() => {
+      showingFinalHit = false;
+      render();
+    }, 300);
+  }
+}
+
 function act(action) {
+  if (showingFinalHit) return;
   if (action === 'cancel') {
     const focus = moltIndex;
     moltIndex = null;
@@ -931,27 +911,12 @@ function act(action) {
     game = newGame(seed ?? Math.floor(Math.random() * 2 ** 32));
     render(true);
   }
-  if (action === 'end' && game) {
+  if (action === 'end' && game && !game.result) {
     endTurn(game);
     glassSound();
-    render(true);
-    if (game.report && !game.result) {
-      if (game.report.taken) {
-        floatAt(root.querySelector('.player-meter'), `-${game.report.taken}`, 'hit');
-        hurtSound();
-        shake(root.querySelector('.table'));
-      }
-      if (game.report.dealt) floatAt(root.querySelector('.rail.rival-rail .meter-wrap'), `-${game.report.dealt}`, 'hit');
-      if (game.report.burst) burstSound();
-    }
+    showExchange(true);
   }
-  if (action === 'burst' && game) {
-    if (wieldBurst(game)) {
-      render();
-      floatAt(root.querySelector('.rival-rail .meter-wrap'), game.report.dealt ? `-${game.report.dealt}` : 'Blocked', 'burst');
-      burstSound();
-    }
-  }
+  if (action === 'burst' && game && wieldBurst(game)) showExchange(false, true);
 }
 
 function useCard(index) {
@@ -963,13 +928,16 @@ function useCard(index) {
     render(false, 0);
     return;
   }
-  if (moltIndex === null ? playCard(game, index) : playCard(game, moltIndex, index)) {
+  const playedIndex = moltIndex ?? index;
+  const bounds = root.querySelector(`[data-card="${playedIndex}"]`)?.getBoundingClientRect();
+  if (playCard(game, playedIndex, moltIndex === null ? undefined : index)) {
     moltIndex = null;
     const suit = game.player.played.at(-1)?.suit;
     if (suit === 'Wax') tone(660, 0.12, 'sine', 0.03);
     else if (suit === 'Moth') tone(420, 0.09, 'triangle', 0.025);
     else dealSound(index);
     render(false, index);
+    if (!shot) snapCard(bounds, root.querySelector(`[data-slot="${game.player.played.length - 1}"]`));
   }
 }
 
@@ -1001,4 +969,5 @@ document.addEventListener('keydown', event => {
 
 window.addEventListener('resize', repaint);
 render(true);
+
 })();

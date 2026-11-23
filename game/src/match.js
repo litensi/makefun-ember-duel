@@ -16,7 +16,7 @@ function prepareTurn(game) {
 export function newGame(seed) {
   const random = randomFrom(seed);
   const game = {
-    random, warden: chooseWarden(random), round: 1, result: null, report: null,
+    random, warden: chooseWarden(random), round: 1, bestChain: 0, result: null, report: null,
     player: newDuelist(random), rival: newDuelist(random),
   };
   prepareTurn(game);

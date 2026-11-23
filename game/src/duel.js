@@ -137,7 +137,10 @@ export function finish(game) {
 }
 
 export function playCard(game, index, discardIndex) {
-  return !game.result && play(game.player, game.rival, index, game.random, discardIndex);
+  if (game.result || !play(game.player, game.rival, index, game.random, discardIndex)) return false;
+  const { lanterns, moths } = totals(game.player.played);
+  game.bestChain = Math.max(game.bestChain, lanterns, moths);
+  return true;
 }
 
 export function wieldBurst(game) {

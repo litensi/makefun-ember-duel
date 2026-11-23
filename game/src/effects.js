@@ -1,5 +1,4 @@
 let audio;
-let toneCount = 0;
 
 function context() {
   if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
@@ -61,6 +60,20 @@ export function shake(node) {
   setTimeout(() => node.classList.remove('shake'), 420);
 }
 
-export function markEmbers() {
-  return Math.max(0, ++toneCount);
+export function flashEmbers(meter, damage, kind = 'hit') {
+  if (!meter || !damage) return;
+  meter.classList.add('damaged');
+  floatAt(meter, `−${damage}`, kind);
+}
+
+export function snapCard(bounds, slot) {
+  if (!bounds || !slot || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const landing = slot.getBoundingClientRect();
+  const x = bounds.left + (bounds.width - landing.width) / 2 - landing.left;
+  const y = bounds.top + (bounds.height - landing.height) / 2 - landing.top;
+  slot.animate([
+    { transform: `translate(${x}px, ${y}px) scale(1.18) rotate(-5deg)`, opacity: .65 },
+    { transform: 'scale(.92)', opacity: 1, offset: .78 },
+    { transform: 'scale(1)', opacity: 1 },
+  ], { duration: 245, easing: 'cubic-bezier(.25,.7,.4,1)' });
 }
