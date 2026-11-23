@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ember Duel</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <canvas id="festival" aria-hidden="true"></canvas>
+  <main id="game" aria-label="Ember Duel"></main>
+  <script>
+    // Chrome blocks local module fetches from file URLs. The bundled entry
+    // uses the same rules, artwork, and interface for direct offline play.
+    const entry = document.createElement('script');
+    if (location.protocol === 'file:') {
+      entry.src = './src/offline.js';
+    } else {
+      entry.type = 'module';
+      entry.src = './src/main.js';
+    }
+    document.head.append(entry);
+  </script>
+</body>
+</html>
