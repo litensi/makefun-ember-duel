@@ -776,7 +776,8 @@ function feature(scene, game) {
       <p class="eyebrow">${title ? 'A DUEL AT DUSK' : `DUEL COMPLETE · ROUND ${game.round}`}</p>
       <h1>${name}</h1>
       <p class="feature-copy">${copy}</p>
-      ${title ? '' : `<div class="result-score"><span>You <b>${game.player.embers}</b></span><span>Rival <b>${game.rival.embers}</b></span></div>`}
+      ${title ? '' : `<div class="result-score"><span>You <b>${game.player.embers}</b></span><span>Rival <b>${game.rival.embers}</b></span></div>
+      <div class="finisher">${won ? '<span>Final blow</span><b>Beacon Burst · 6 pierce</b>' : `<span>Rival kept</span><b>${game.rival.embers} embers</b>`}</div>`}
       <button class="primary" data-action="start">${title ? 'Take up your lantern' : 'Duel again'} <span>→</span></button>
       <div class="feature-key"><kbd>Enter</kbd> to ${title ? 'begin' : 'restart'}</div>
     </div>
