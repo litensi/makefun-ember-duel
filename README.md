@@ -8,7 +8,7 @@
 
 ## Play
 
-Open `game/index.html` in a desktop browser. Click a card or press **1–5** to play it. Press **Enter** or click **End turn** to resolve the exchange. Open **How to play** at the table for the suit and combo rules.
+Open `game/index.html` in a desktop browser. Click a card or press **1–5** to play it. Press **Enter** or click **End turn** to resolve the exchange. Track Ignite and Veil in the Chain counter, and check the damage preview before ending your turn. Smoke weakens the rival’s next attack, Kindle adds Wick and draws, and Molt lets you discard a card to absorb the next damaging hit. Press **Esc** to cancel a Molt discard. Open **How to play** at the table for the suit and combo rules.
 
 ## Package the entry
 

@@ -1,29 +1,45 @@
-import { choosePlan, endTurn, newGame, playCard, totals } from './rules.js';
+import { playCard, wieldBurst } from './duel.js';
+import { endTurn, newGame } from './match.js';
 
-export function replay(seed, scene) {
-  const game = newGame(seed);
-  if (scene === 'table') {
-    for (const name of ['Foxfire', 'Pale Silkmoth', 'Paper Wings']) {
-      playCard(game, game.player.hand.findIndex(card => card.name === name));
+const walkthroughs = {
+  table: {
+    // This deal leaves Molt and a heal in hand with one play remaining.
+    salt: 2052212128,
+    moves: [
+      ['Pale Silkmoth'], ['Bell Gust'], ['Saffron Torch'], 'end',
+      ['Cricket Lamp'], ['Foxfire'],
+    ],
+  },
+  win: {
+    salt: 0,
+    moves: [
+      ['Ash Cloak'], ['Roof Draft'], ['Foxfire'], 'burst', 'end',
+      ['Molt', 'Amber Salve'], ['Velvet Wing'], ['Pale Silkmoth'], 'burst',
+    ],
+  },
+  loss: { salt: 0, moves: ['end', 'end'] },
+};
+
+function runWalkthrough(seed, { salt, moves }) {
+  const game = newGame((seed ^ salt) >>> 0);
+  for (const move of moves) {
+    if (move === 'end') endTurn(game);
+    else if (move === 'burst') wieldBurst(game);
+    else {
+      const [name, discard] = move;
+      const index = game.player.hand.findIndex(card => card.name === name);
+      const discardIndex = game.player.hand.findIndex(card => card.name === discard);
+      playCard(game, index, discardIndex);
     }
-    endTurn(game);
-    playCard(game, game.player.hand.findIndex(card => card.name === 'Copper Halo'));
-    return game;
-  }
-  while (!game.result && game.round < 100) {
-    if (scene === 'win') {
-      const { player, rival, intent } = game;
-      const plan = choosePlan(player, cards => {
-        const { attack, guard } = totals(cards);
-        const dealt = Math.max(0, attack - intent.guard);
-        const taken = Math.max(0, intent.attack - guard);
-        const heal = Math.min(12 - player.embers, cards.filter(card => card.suit === 'Wax').length * 2);
-        return (taken >= player.embers + heal ? -50 : 0) + (dealt >= rival.embers ? 50 : 0)
-          + dealt * 1.28 - taken * 1.55 + heal - cards.length * 0.1;
-      });
-      for (const card of plan) playCard(game, player.hand.indexOf(card));
-    }
-    endTurn(game);
   }
   return game;
+}
+
+export function replay(seed, scene) {
+  const script = walkthroughs[scene];
+  const game = runWalkthrough(seed, script);
+  const reachedScene = scene === 'table'
+    ? !game.result && game.player.played.length === 2 && game.player.played.every(card => card.suit === 'Lantern')
+    : game.result === scene;
+  return reachedScene ? game : runWalkthrough(1, script);
 }
