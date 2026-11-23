@@ -194,3 +194,5 @@ details p { position: absolute; right: 0; width: 300px; line-height: 1.55; borde
 .discard-prompt { position: absolute; bottom: 182px; inset-inline: 0; z-index: 1; width: max-content; max-width: 100%; margin: auto; padding: 8px 12px; border: 1px solid #ad8cc8; border-radius: 5px; color: #f4e2ff; background: #32233f; font-size: 13px; }
 .discard-prompt button { margin-left: 8px; color: inherit; background: #523964; border: 1px solid #ad8cc8; border-radius: 3px; padding: 3px 6px; }
 @media (max-height: 700px) { .discard-prompt { bottom: 162px; } }
+.still .sparks i { opacity: .85; transform: translate(var(--x), var(--y)) rotate(130deg); }
+.still .plate-label { opacity: 1; }

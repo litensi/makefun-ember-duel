@@ -98,7 +98,7 @@ export function table(game, moltIndex = null) {
           ${game.plan.length ? `<div class="scheme">Playing <b>${game.plan[0].name}</b>${game.plan.length > 1 ? ` +${game.plan.length - 1}` : ''}</div>` : '<div class="scheme">holding back</div>'}
           ${game.rivalBurst ? '<div class="scheme">Beacon Burst ready</div>' : ''}
         </div>
-        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}</div>
+        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}${game.float ? `<span class="float hit">-${game.float.rival}</span>` : ''}</div>
       </aside>
       <div class="field">
         <div class="rival-hand" aria-label="Rival hand, ${rival.hand.length} cards">

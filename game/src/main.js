@@ -26,7 +26,8 @@ function render(deal = false, focus = null) {
   if (changed) repaint();
   root.dataset.scene = scene;
   root.classList.toggle('deal', deal && !shot);
-  root.classList.toggle('celebrate', scene === 'win' && !shot);
+  root.classList.toggle('celebrate', scene === 'win');
+  root.classList.toggle('still', Boolean(shot));
   root.innerHTML = scene === 'table' ? table(game, moltIndex) : feature(scene, game);
   if (changed && sound && scene === 'win') victorySound();
   if (changed && sound && scene === 'loss') tone(120, 0.8, 'sine', 0.05);

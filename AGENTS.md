@@ -12,7 +12,7 @@ Title screen (game name, one-line how to play, Start). Table (opponent hand top,
 ## Hard rules
 - `game/index.html` plus ES modules under `game/src/`, standard browser JS, no imports outside `game/`, no network, no libraries (vendor stays untouched).
 - `main.ts` at root (Node 22, stdlib only): copies `game/` and `screenshots/` to `/output` (env `MAKEFUN_OUTPUT_DIR` or `/output`) and writes `dossier.json` with `buildDossier` from `./vendor/makefun-game.ts`, with the starter's caps: text_max_bytes 163840, screenshots {max:4,max_bytes:262144}, game_max_files 993, game_max_bytes 50331648, game_path_max_bytes 1000.
-- `screenshots/`: 4 images named `1-title.png`, `2-table.png`, `3-win.png`, `4-loss.png`, real headless-Chrome captures of `game/index.html?shot=title|table|win|loss&seed=1` at 1280x720, whole PNG, under 256 KiB each.
+- `screenshots/`: 4 images named `1-title.jpg`, `2-table.jpg`, `3-win.jpg`, `4-loss.jpg` (JPEG also accepted), real headless-Chrome captures of `game/index.html?shot=title|table|win|loss&seed=1` at 1280x720, whole PNG, under 256 KiB each.
 - `.makefun/owner.json` holds `{"wallet": "AVs8TMJcjvgmozor7LTDcWntMZpC2gAUmWFPe3AG61bo"}`. LICENSE MIT. README carries three make.fun badges.
 - Split the code into files with one clear job each and name functions for what they do.
 

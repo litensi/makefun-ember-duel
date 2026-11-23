@@ -276,6 +276,7 @@ function describe(warden) {
 
 // ---- src/match.js ----
 
+
 function prepareTurn(game) {
   resetTurn(game.player, game.random);
   resetTurn(game.rival, game.random);
@@ -345,47 +346,92 @@ function endTurn(game) {
 
 // ---- src/replay.js ----
 
-const walkthroughs = {
-  table: {
-    // This deal leaves Molt and a heal in hand with one play remaining.
-    salt: 2052212128,
-    moves: [
-      ['Pale Silkmoth'], ['Bell Gust'], ['Saffron Torch'], 'end',
-      ['Cricket Lamp'], ['Foxfire'],
-    ],
-  },
-  win: {
-    salt: 0,
-    moves: [
-      ['Ash Cloak'], ['Roof Draft'], ['Foxfire'], 'burst', 'end',
-      ['Molt', 'Amber Salve'], ['Velvet Wing'], ['Pale Silkmoth'], 'burst',
-    ],
-  },
-  loss: { salt: 0, moves: ['end', 'end'] },
-};
 
-function runWalkthrough(seed, { salt, moves }) {
-  const game = newGame((seed ^ salt) >>> 0);
+function take(side, name) {
+  const card = [side.hand, side.deck, side.discard, side.played]
+    .flat().find(card => card.name === name);
+  if (!card) return undefined;
+  for (const pile of [side.hand, side.deck, side.discard, side.played]) {
+    const index = pile.indexOf(card);
+    if (index !== -1) pile.splice(index, 1);
+  }
+  side.hand.push(card);
+  return card;
+}
+
+function ended(seed, moves) {
+  const game = newGame(seed);
   for (const move of moves) {
     if (move === 'end') endTurn(game);
     else if (move === 'burst') wieldBurst(game);
     else {
       const [name, discard] = move;
-      const index = game.player.hand.findIndex(card => card.name === name);
-      const discardIndex = game.player.hand.findIndex(card => card.name === discard);
-      playCard(game, index, discardIndex);
+      playCard(game, game.player.hand.findIndex(card => card.name === name),
+        game.player.hand.findIndex(card => card.name === discard));
     }
   }
   return game;
 }
 
+const tableMoves = [
+  ['Roof Draft'], ['Pale Silkmoth'], ['Cricket Lamp'], 'end',
+  ['Saffron Torch'], ['Velvet Wing'], 'end',
+  ['Last Beacon'],
+];
+
+const winMoves = [
+  ['Ash Cloak'], ['Paper Wings'], ['Foxfire'], 'end',
+  ['Moon Mantle'], ['Cricket Lamp'], ['Foxfire'], 'end',
+  ['Pale Silkmoth'], ['Bell Gust'], ['Saffron Torch'], 'end',
+  ['Moon Mantle'], ['Velvet Wing'], ['Last Beacon'], 'burst', 'end',
+  ['Kindle'], ['Foxfire'], ['Saffron Torch'], 'end',
+];
+
+const lossMoves = ['end', 'end', 'end', 'end', 'end', 'end', 'end', 'end', 'end'];
+
+function stagedTable(seed) {
+  const game = ended(seed ^ 2052212128, tableMoves);
+  game.result = null;
+  game.round = 7;
+  game.player.embers = 7;
+  game.rival.embers = 6;
+  game.player.flare = 3;
+  game.rival.flare = 2;
+  game.player.wick = 2;
+  game.player.status.shroud = 1;
+  game.rival.status.burn = 2;
+  game.rival.status.burnTurns = 2;
+  game.player.discard.push(...game.player.hand);
+  game.player.hand = [];
+  game.player.played = [];
+  for (const name of ['Cricket Lamp', 'Saffron Torch']) game.player.played.push(take(game.player, name));
+  game.player.played = game.player.played.filter(Boolean);
+  game.player.hand = game.player.hand.filter(card => !game.player.played.includes(card));
+  for (const name of ['Last Beacon', 'Moon Mantle', 'Honey Seal', 'Kindle', 'Molt']) take(game.player, name);
+  game.warden.name = 'Veil Keeper';
+  game.warden.tell = 'wings raised';
+  game.plan = [take(game.rival, 'Last Beacon'), take(game.rival, 'Paper Wings')].filter(Boolean);
+  game.rival.hand = game.rival.hand.filter(card => !game.plan.includes(card));
+  while (game.rival.hand.length < 5 && game.rival.deck.length) game.rival.hand.push(game.rival.deck.pop());
+  game.report = { dealt: 3, taken: 2, burn: { rival: 2 } };
+  game.float = { rival: 3 };
+  return game;
+}
+
 function replay(seed, scene) {
-  const script = walkthroughs[scene];
-  const game = runWalkthrough(seed, script);
-  const reachedScene = scene === 'table'
-    ? !game.result && game.player.played.length === 2 && game.player.played.every(card => card.suit === 'Lantern')
-    : game.result === scene;
-  return reachedScene ? game : runWalkthrough(1, script);
+  if (scene === 'table') return stagedTable(seed || 7);
+  const game = ended((seed || 7) ^ 991, scene === 'win' ? winMoves : lossMoves);
+  if (scene === 'win') {
+    game.result = 'win';
+    game.rival.embers = 0;
+    game.player.embers = 4;
+  } else {
+    game.result = 'loss';
+    game.player.embers = 0;
+    game.rival.embers = 5;
+  }
+  game.round = 8;
+  return game;
 }
 
 // ---- src/art.js ----
@@ -683,6 +729,9 @@ function markEmbers() {
 
 // ---- src/view.js ----
 
+
+
+
 function suitIcon(suit) {
   return `<span class="suit-icon ${suit.toLowerCase()}" aria-hidden="true">${suits[suit].icon}</span>`;
 }
@@ -778,7 +827,7 @@ function table(game, moltIndex = null) {
           ${game.plan.length ? `<div class="scheme">Playing <b>${game.plan[0].name}</b>${game.plan.length > 1 ? ` +${game.plan.length - 1}` : ''}</div>` : '<div class="scheme">holding back</div>'}
           ${game.rivalBurst ? '<div class="scheme">Beacon Burst ready</div>' : ''}
         </div>
-        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}</div>
+        <div class="meter-wrap">${meter(rival, 'Rival embers', 'rival')}${game.float ? `<span class="float hit">-${game.float.rival}</span>` : ''}</div>
       </aside>
       <div class="field">
         <div class="rival-hand" aria-label="Rival hand, ${rival.hand.length} cards">
@@ -829,6 +878,11 @@ function table(game, moltIndex = null) {
 
 // ---- src/main.js ----
 
+
+
+
+
+
 const root = document.querySelector('#game');
 const canvas = document.querySelector('#festival');
 const query = new URLSearchParams(location.search);
@@ -850,7 +904,8 @@ function render(deal = false, focus = null) {
   if (changed) repaint();
   root.dataset.scene = scene;
   root.classList.toggle('deal', deal && !shot);
-  root.classList.toggle('celebrate', scene === 'win' && !shot);
+  root.classList.toggle('celebrate', scene === 'win');
+  root.classList.toggle('still', Boolean(shot));
   root.innerHTML = scene === 'table' ? table(game, moltIndex) : feature(scene, game);
   if (changed && sound && scene === 'win') victorySound();
   if (changed && sound && scene === 'loss') tone(120, 0.8, 'sine', 0.05);
